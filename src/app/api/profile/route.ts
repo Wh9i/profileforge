@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { profileUpdateSchema } from "@/lib/validations";
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { userId: session.user.id },
+    include: {
+      socialLinks: { orderBy: { order: "asc" } },
+      theme: true,
+      musicPlaylist: { orderBy: { order: "asc" } },
+      user: { include: { premium: true } },
+    },
+  });
+
+  if (!profile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(profile);
+}
+
+export async function PATCH(req: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const parsed = profileUpdateSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0].message },
+        { status: 400 }
+      );
+    }
+
+    const profile = await prisma.profile.update({
+      where: { userId: session.user.id },
+      data: parsed.data,
+      include: {
+        socialLinks: { orderBy: { order: "asc" } },
+        theme: true,
+        musicPlaylist: { orderBy: { order: "asc" } },
+      },
+    });
+
+    return NextResponse.json(profile);
+  } catch (error) {
+    console.error("Profile update error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
