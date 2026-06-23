@@ -233,7 +233,7 @@ export default function EditorPage() {
                 <div key={field}>
                   <label className="block text-sm text-white/70 mb-1.5">{label}</label>
                   <select
-                    value={(profile as Record<string, string>)[field]}
+                    value={(profile as unknown as Record<string, string>)[field]}
                     onChange={(e) => updateField(field, e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl glass text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
                   >
