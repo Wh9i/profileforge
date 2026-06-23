@@ -298,7 +298,7 @@ export default function EditorPage() {
             </CardHeader>
             <div className="rounded-xl overflow-hidden border border-white/10 h-[600px] relative">
               <div className="absolute inset-0 overflow-auto scale-[0.85] origin-top">
-              <PublicProfile profile={profile as unknown as ProfileData} showActions={false} />
+              <PublicProfile profile={profile as unknown as Parameters<typeof PublicProfile>[0]['profile']} showActions={false} />
               </div>
             </div>
           </Card>
