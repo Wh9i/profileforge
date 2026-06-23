@@ -1,45 +1,13 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import Credentials from "next-auth/providers/credentials";
-import Discord from "next-auth/providers/discord";
-import Google from "next-auth/providers/google";
-import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import type { UserRole } from "@prisma/client";
-
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name?: string | null;
-      image?: string | null;
-      role: UserRole;
-      username?: string;
-    };
-  }
-
-  interface User {
-    role?: UserRole;
-  }
-}
-
-declare module "@auth/core/jwt" {
-  interface JWT {
-    id: string;
-    role: UserRole;
-    username?: string;
-  }
-}
+import { authConfig } from "./auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       name: "credentials",
@@ -57,7 +25,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.password) return null;
         if (user.isBanned) return null;
-        //if (!user.emailVerified) return null;
 
         const valid = await bcrypt.compare(
           credentials.password as string,
@@ -74,32 +41,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
-    ...(process.env.AUTH_DISCORD_ID
-      ? [
-          Discord({
-            clientId: process.env.AUTH_DISCORD_ID,
-            clientSecret: process.env.AUTH_DISCORD_SECRET!,
-          }),
-        ]
-      : []),
-    ...(process.env.AUTH_GOOGLE_ID
-      ? [
-          Google({
-            clientId: process.env.AUTH_GOOGLE_ID,
-            clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-          }),
-        ]
-      : []),
-    ...(process.env.AUTH_GITHUB_ID
-      ? [
-          GitHub({
-            clientId: process.env.AUTH_GITHUB_ID,
-            clientSecret: process.env.AUTH_GITHUB_SECRET!,
-          }),
-        ]
-      : []),
+    ...authConfig.providers,
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async signIn({ user, account }) {
       if (account?.provider !== "credentials") {
         const existing = await prisma.user.findUnique({
@@ -130,8 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   theme: { create: {} },
                 },
               },
-              settings: { create: {} },
-              premium: { create: {} },
             },
           });
         } else if (existing && !existing.emailVerified) {
@@ -144,38 +87,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, trigger, session }) {
-      if (user) {
-        token.id = user.id!;
-        token.role = user.role || "USER";
-      }
-
-      if (trigger === "update" && session) {
-        return { ...token, ...session };
-      }
+      let updatedToken = await authConfig.callbacks.jwt({ token, user, trigger, session });
 
       if (process.env.NEXT_RUNTIME === "edge") {
-        return token; 
+        return updatedToken; 
       }
       
       const dbUser = await prisma.user.findUnique({
-        where: { id: token.id as string },
+        where: { id: updatedToken.id as string },
         include: { profile: true },
       });
 
       if (dbUser) {
-        token.role = dbUser.role;
-        token.username = dbUser.profile?.username;
+        updatedToken.role = dbUser.role;
+        updatedToken.username = dbUser.profile?.username;
       }
 
-      return token;
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
-        session.user.username = token.username as string | undefined;
-      }
-      return session;
+      return updatedToken;
     },
   },
 });
