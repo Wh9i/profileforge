@@ -216,7 +216,7 @@ export default function EditorPage() {
                     <label className="block text-xs text-white/50 mb-1">{label}</label>
                     <input
                       type="color"
-                      value={(profile as any)[field]}
+                      value={(profile as unknown as Record<string, string>)[field]}
                       onChange={(e) => updateField(field, e.target.value)}
                       className="w-full h-10 rounded-lg cursor-pointer bg-transparent"
                     />
