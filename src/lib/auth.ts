@@ -87,28 +87,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, trigger, session }) {
-      // 1. Если это момент логина, сохраняем данные в токен
       if (user) {
         token.id = user.id!;
         token.role = user.role || "USER";
       }
 
-      // 2. Если прилетело обновление сессии с клиента
       if (trigger === "update" && session) {
         return { ...token, ...session };
       }
 
-      // 3. Если мы в Edge-окружении (мидлварь), сразу возвращаем токен без работы с БД
       if (process.env.NEXT_RUNTIME === "edge") {
         return token; 
       }
       
-      // 4. ЖЕЛЕЗНАЯ ЗАЩИТА: Если id нет, не делаем запрос к Prisma, чтобы избежать ошибки 500
       if (!token?.id) {
         return token;
       }
 
-      // 5. Безопасный запрос к базе данных
       try {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -120,10 +115,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.username = dbUser.profile?.username;
         }
       } catch (error) {
-        console.error("Ошибка запроса к БД в колбэке JWT:", error);
+        console.error("Ошибка в JWT:", error);
       }
 
       return token;
+    },
+    // ВОТ ЭТОТ КУСОК СВЯЗЫВАЕТ ТОКЕН И КЛИЕНТ:
+    async session({ session, token }) {
+      if (token && session.user) {
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
+        (session.user as any).username = token.username;
+      }
+      return session;
     },
   },
 });
