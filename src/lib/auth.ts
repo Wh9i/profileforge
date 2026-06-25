@@ -120,12 +120,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return token;
     },
-    // ВОТ ЭТОТ КУСОК СВЯЗЫВАЕТ ТОКЕН И КЛИЕНТ:
+    // ТЕПЕРЬ ТУТ ЧИСТЫЙ ТИПИЗИРОВАННЫЙ КОД БЕЗ ANY:
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).username = token.username;
+        const extendedUser = session.user as { id?: string; role?: string; username?: string };
+        extendedUser.id = token.id as string;
+        extendedUser.role = token.role as string;
+        extendedUser.username = token.username as string;
       }
       return session;
     },
