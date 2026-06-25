@@ -87,7 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, trigger, session }) {
-      let updatedToken = await authConfig.callbacks.jwt({ token, user, trigger, session });
+      const updatedToken = await authConfig.callbacks.jwt({ token, user, trigger, session });
 
       if (process.env.NEXT_RUNTIME === "edge") {
         return updatedToken; 
