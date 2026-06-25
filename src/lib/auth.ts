@@ -87,23 +87,43 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, trigger, session }) {
-      const updatedToken = await authConfig.callbacks.jwt({ token, user, trigger, session });
+      // 1. Если это момент логина, сохраняем данные в токен
+      if (user) {
+        token.id = user.id!;
+        token.role = user.role || "USER";
+      }
 
+      // 2. Если прилетело обновление сессии с клиента
+      if (trigger === "update" && session) {
+        return { ...token, ...session };
+      }
+
+      // 3. Если мы в Edge-окружении (мидлварь), сразу возвращаем токен без работы с БД
       if (process.env.NEXT_RUNTIME === "edge") {
-        return updatedToken; 
+        return token; 
       }
       
-      const dbUser = await prisma.user.findUnique({
-        where: { id: updatedToken.id as string },
-        include: { profile: true },
-      });
-
-      if (dbUser) {
-        updatedToken.role = dbUser.role;
-        updatedToken.username = dbUser.profile?.username;
+      // 4. ЖЕЛЕЗНАЯ ЗАЩИТА: Если id нет, не делаем запрос к Prisma, чтобы избежать ошибки 500
+      if (!token?.id) {
+        return token;
       }
 
-      return updatedToken;
+      // 5. Безопасный запрос к базе данных
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          include: { profile: true },
+        });
+
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.username = dbUser.profile?.username;
+        }
+      } catch (error) {
+        console.error("Ошибка запроса к БД в колбэке JWT:", error);
+      }
+
+      return token;
     },
   },
 });
