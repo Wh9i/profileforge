@@ -1,37 +1,10 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/auth.config";
-import { NextResponse } from "next/server";
 
-// Инициализируем только легкую часть конфига для проверки сессий, без баз данных
-const { auth } = NextAuth(authConfig);
-
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
-
-  const protectedRoutes = ["/dashboard", "/editor", "/analytics", "/settings", "/premium", "/music"];
-  const adminRoutes = ["/admin"];
-  const authRoutes = ["/login", "/register"];
-
-  const isProtected = protectedRoutes.some((r) => pathname.startsWith(r));
-  const isAdmin = adminRoutes.some((r) => pathname.startsWith(r));
-  const isAuthRoute = authRoutes.some((r) => pathname.startsWith(r));
-
-  if (isProtected && !isLoggedIn) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-
-  if (isAdmin && (!isLoggedIn || !["ADMIN", "MODERATOR"].includes(req.auth?.user?.role || ""))) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
-  if (isAuthRoute && isLoggedIn) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
-  return NextResponse.next();
-});
+// Инициализируем NextAuth ТОЛЬКО через легкий конфиг без Prisma/Bcrypt
+export default NextAuth(authConfig).auth;
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // Этот матчер защищает нужные страницы, не затрагивая статику и API
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
